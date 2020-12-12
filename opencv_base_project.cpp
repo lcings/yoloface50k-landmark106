@@ -54,10 +54,10 @@ std::vector<FaceInfo> yolo_face_detect(cv::dnn::Net &detect_net, cv::Mat img)
 					float y = ((sigmod(p[1]) + j) / 7.0)*ih;
 					float w = (((BIAS_W[k]) * exp(p[2])) / INPUT_SIZE)*iw;
 					float h = (((BIAS_H[k]) * exp(p[3])) / INPUT_SIZE)*ih;
-					float x1 = int(x - w * 0.5);
-					float x2 = int(x + w * 0.5);
-					float y1 = int(y - h * 0.5);
-					float y2 = int(y + h * 0.5);
+					int x1 = int(x - w * 0.5);
+					int x2 = int(x + w * 0.5);
+					int y1 = int(y - h * 0.5);
+					int y2 = int(y + h * 0.5);
 					//printf("%f %f %f %f %f\n", x1, y1, x2, y2, score);
 					bboxes.push_back(cv::Rect(cv::Point(x1, y1), cv::Point(x2, y2)));
 					scores.push_back(score);
@@ -73,6 +73,7 @@ std::vector<FaceInfo> yolo_face_detect(cv::dnn::Net &detect_net, cv::Mat img)
 		FaceInfo info;
 		info.rect = bboxes[i];
 		info.score = scores[i];
+		result.push_back(info);
 	}
 	return result;
 }
@@ -137,10 +138,10 @@ int main(int argc, char *argv[])
 	std::vector<FaceInfo> result = yolo_face_detect(detect_net, img);
 	for (FaceInfo info : result) {
 		cv::Rect r = info.rect;
+		printf("face[%d %d %d %d](%f)\n", r.x, r.y, r.width, r.height, info.score);
 		if (r.x <= 0 || r.y < 0) {
 			continue;
 		}
-		printf("face[%d %d %d %d](%f)\n", r.x, r.y, r.width, r.height, info.score);
 		float *points = forward_landmark(landmark_net, img, r);
 		for (int i = 0; i < 106; i++) {
 			cv::circle(img, cv::Point(points[i * 2], points[i * 2 + 1]), 2, cv::Scalar(0, 255, 255), 3);
@@ -148,6 +149,7 @@ int main(int argc, char *argv[])
 		free(points);
 		rectangle(img, r, cv::Scalar(255, 255, 0), 2);
 	}
+	
 	cv::imshow("test_img", img);
 	cv::waitKey(0);
 	return 0;
