@@ -11,13 +11,13 @@ float sigmod(float x)
 	return 1.0 / (1.0 + exp(-x));
 }
 
-float yolo_face_prase_blob(float* p, int a, int b, int c)
-{
-	return p[a + b * 7 * 7 + 7 * c];
-}
-
 std::vector<FaceInfo> yolo_face_detect(cv::dnn::Net &detect_net, cv::Mat img)
 {
+	std::vector<FaceInfo> result;
+	if (detect_net.empty() || !img.data) {
+		return result;
+	}
+	
 	int INPUT_SIZE = 56;
 	int iw = img.cols;
 	int ih = img.rows;
@@ -33,8 +33,8 @@ std::vector<FaceInfo> yolo_face_detect(cv::dnn::Net &detect_net, cv::Mat img)
 	for (int i = 0; i < 7; i++) {
 		for (int j = 0; j < 7; j++) {
 			for (int k = 0; k < 18; k++) {
-				//对标out["layer33-conv"].transpose(0, 3, 2, 1)[0]
-				data[idx++] = yolo_face_prase_blob(p, i, k, j);
+				//瀵规爣out["layer33-conv"].transpose(0, 3, 2, 1)[0]
+				data[idx++] = p[i + k * 7 * 7 + 7 * j];
 			}
 		}
 	}
@@ -69,18 +69,27 @@ std::vector<FaceInfo> yolo_face_detect(cv::dnn::Net &detect_net, cv::Mat img)
 	std::vector<int> indices;
 	cv::dnn::NMSBoxes(bboxes, scores, 0.75, 0.35, indices);
 
-	std::vector<FaceInfo> result;
 	for (int i : indices) {
 		FaceInfo info;
 		info.rect = bboxes[i];
 		info.score = scores[i];
-		result.push_back(info);
 	}
 	return result;
 }
 
 float* forward_landmark(cv::dnn::Net &landmark_net, cv::Mat img, cv::Rect rect)
 {
+	if (landmark_net.empty() || !img.data) {
+		return NULL;
+	}
+
+	if (rect.x < 0 || rect.y < 0 || 
+		rect.x + rect.width > img.cols ||
+		rect.y + rect.height > img.rows) 
+	{
+		return NULL;
+	}
+
 	int INPUT_SIZE = 112;
 	int iw = rect.width;
 	int ih = rect.height;
@@ -100,7 +109,7 @@ float* forward_landmark(cv::dnn::Net &landmark_net, cv::Mat img, cv::Rect rect)
 	int idx = 0;
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 112 * 112; j++) {
-			//对标input_shape = new_img.transpose(2,0,1)
+			//瀵规爣input_shape = new_img.transpose(2,0,1)
 			p[idx++] = d[3 * j + i];
 		}
 	}
@@ -128,6 +137,9 @@ int main(int argc, char *argv[])
 	std::vector<FaceInfo> result = yolo_face_detect(detect_net, img);
 	for (FaceInfo info : result) {
 		cv::Rect r = info.rect;
+		if (r.x <= 0 || r.y < 0) {
+			continue;
+		}
 		printf("face[%d %d %d %d](%f)\n", r.x, r.y, r.width, r.height, info.score);
 		float *points = forward_landmark(landmark_net, img, r);
 		for (int i = 0; i < 106; i++) {
